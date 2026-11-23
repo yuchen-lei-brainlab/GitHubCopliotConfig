@@ -41,7 +41,7 @@ function Invoke-NightlyStep([string]$Step, [string]$Dir) {
     $cmd = "& '$vs\Common7\Tools\Launch-VsDevShell.ps1' -Arch amd64 -SkipAutomaticLocation | Out-Null; " +
            ". `$PROFILE; Set-Location '$Dir'; & $Step *>&1 | Tee-Object -FilePath '$log'; " +
            "Set-Content '$done' `$LASTEXITCODE"
-    Start-Process powershell.exe -ArgumentList '-NoExit', '-ExecutionPolicy', 'Bypass', '-Command', $cmd
+    Start-Process powershell.exe -ArgumentList '-ExecutionPolicy', 'Bypass', '-Command', $cmd
     return $log
 }
 ```
@@ -54,7 +54,7 @@ Python per step: `clang` fails with `ModuleNotFoundError: No module named 'utils
 
 Reading results: `dox` prints its progress through stderr, so PowerShell shows `NativeCommandError` lines. These are not warnings. `lint` is clean when it ends with `OK` and shows no `Warning`, `Error` or `Info` lines with a number.
 
-The window stays open (`-NoExit`)
+The window closes automatically when the step finishes; its log and `.done` marker remain available.
 
 ## Procedure
 The interactive prompt cannot be answered reliably from the agent terminal. Run the same functions one at a time and make each y/r decision yourself. This produces the same result as `nightly`.
