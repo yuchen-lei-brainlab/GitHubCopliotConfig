@@ -11,12 +11,15 @@ foreach ($dir in "$env:BRAINTOOLS_DIR\perforce\bin", "$env:BRAINTOOLS_DIR\braind
 if ((Test-Path 'C:\cygwin64\bin\cygpath.exe') -and ($env:PATH -notlike '*C:\cygwin64\bin*')) { $env:PATH = "$env:PATH;C:\cygwin64\bin" }
 
 function Say($msg) { Write-Host; Write-Host $msg }
-$script:PythonExe = Get-Command python3, python -CommandType Application -ErrorAction SilentlyContinue |
-    Where-Object { $_.Source -like '*.exe' -and $_.Source -notlike '*\WindowsApps\*' -and $_.Source -notlike '*\cygwin*' } | Select-Object -First 1 -ExpandProperty Source
-function Py { if ($script:PythonExe) { & $script:PythonExe @args } else { Write-Error 'No real Python found on PATH.' } }
+$global:PythonExe = Get-ChildItem 'C:\cygwin64\bin\python3*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+if (-not $global:PythonExe) {
+    $global:PythonExe = Get-Command python3, python -CommandType Application -ErrorAction SilentlyContinue |
+        Where-Object { $_.Source -like '*.exe' -and $_.Source -notlike '*\WindowsApps\*' } | Select-Object -First 1 -ExpandProperty Source
+}
+function Py { if ($global:PythonExe) { & $global:PythonExe @args } else { Write-Error 'No real Python found on PATH.' } }
 function Get-ModulePath { (Get-Location).Path.Substring($CLIENT_ROOT.Length).TrimStart('\').Replace('\', '/') }
 
-function reload    { . $PROFILE }
+function reload    { Write-Host 'Run this to reload:  . $PROFILE' }
 function ll        { Get-ChildItem @args }
 function update    { Say 'Update client:'; pt updateclient -y -d; Select-String -Path pt-log.txt -Pattern '\b(ERROR|WARNING)\b' -CaseSensitive }
 function checkout  { Say "Check out source files under $(Get-Location):"; p4 edit ...\*.h ...\*.cpp }
@@ -65,16 +68,16 @@ function Invoke-AtRoot([scriptblock]$block) {
 }
 function execIwyu        { Invoke-AtRoot { param($p) Py ./tools/CodeQualityCheckTools/IncludeWhatYouUse/include-what-you-use.py $p -no_fwd_decl } }
 function verboseExecIwyu { Invoke-AtRoot { param($p) Py ./tools/CodeQualityCheckTools/IncludeWhatYouUse/include-what-you-use.py $p -no_fwd_decl -verbose } }
-function execFixiwyu     { Invoke-AtRoot { param($p) Py ./tools/CodeQualityCheckTools/IncludeWhatYouUse/runFixIncludes.py $p -no_fwd_decl }; Py C:\cygwin64\home\yuchen.lei\preserve_newline.py }
+function execFixiwyu     { Invoke-AtRoot { param($p) Py ./tools/CodeQualityCheckTools/IncludeWhatYouUse/runFixIncludes.py $p -no_fwd_decl }; Py /home/yuchen.lei/preserve_newline.py }
 
 function iwyu     { Say 'Run Include-What-You-Use:'; execIwyu }
 function viwyu    { Say 'Run verbose mode of Include-What-You-Use:'; verboseExecIwyu }
-function clang    { Say 'Run Clang-Tidy:'; Py "$CLIENT_ROOT\tools\CodeQualityCheckTools\ClangTidy\clang-tidy.py" -config anma }
+function clang    { Say 'Run Clang-Tidy:'; Py /c/perforce/AnmaTest/tools/CodeQualityCheckTools/ClangTidy/clang-tidy.py -config anma }
 function fixiwyu  { Say 'Fix Include-What-You-Use issues:'; checkout; execFixiwyu; revert; format; removeBak }
-function fixclang { Say 'Fix Clang-Tidy issues:'; checkout; Py "$CLIENT_ROOT\tools\CodeQualityCheckTools\ClangTidy\clang-tidy.py" -config anma -fix; revert; format; removeBak }
+function fixclang { Say 'Fix Clang-Tidy issues:'; checkout; Py /c/perforce/AnmaTest/tools/CodeQualityCheckTools/ClangTidy/clang-tidy.py -config anma -fix; revert; format; removeBak }
 function fixall   { fixiwyu; fixclang }
 
-function bipInfo { Py C:\cygwin64\home\yuchen.lei\parse_bips.py @args }
+function bipInfo { Py /home/yuchen.lei/parse_bips.py @args }
 
 function nightly([int]$startStep = 0) {
     checkout
