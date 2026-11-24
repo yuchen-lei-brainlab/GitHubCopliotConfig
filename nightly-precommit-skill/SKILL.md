@@ -5,6 +5,8 @@ description: Pre-commit guard for a pending Perforce changelist. Runs the `night
 
 # Nightly Pre-Commit Guard Skill
 
+Before proceeding, read and follow `COMMON.md` in this skill's directory. When using the repository source directly, read `..\nightly-common\COMMON.md` instead. If the file is missing, stop and report the installation problem.
+
 ## Input
 A pending Perforce changelist number, for example `3053412`, in the client `C:\perforce\AnmaTest` (`$CLIENT_ROOT`).
 
@@ -17,13 +19,11 @@ Mode:
 - clang-tidy and IWYU run with `-onlyWritable`. That limits them to opened (writable) files instead of the whole package.
 - `checkstd`, `dox` and `lint` can only run on a whole package. Their output is filtered to the changelist files.
 - `format` runs on the changelist files only (`formatcpp.exe` accepts file paths).
-- A finding blocks the submit only if it is in a changelist file. Findings in other files are pre-existing. List them as "not blocking" and do not fix them.
+- A finding blocks the submit only if it is in a changelist file. Findings in other files are pre-existing. List them as "not blocking" and do not fix them. A failed tool or build still blocks verification.
 
 ## Requirements
 - Every long step runs in a **new Developer PowerShell window** (see "Running a step"). Do not run long steps in the agent terminal, because it times out ("A task was canceled").
 - The new window loads the user profile, so `checkstd`, `dox`, `lint`, `Py`, `Invoke-AtRoot` and `$CLIENT_ROOT` are defined.
-- `p4` must be logged in (`p4 login -s`).
-- clang-tidy needs the Windows Python `C:\Program Files\Python313\python.exe`. IWYU needs the default Cygwin Python of the profile.
 
 ## Helpers
 Define these once in the agent terminal.
@@ -97,14 +97,14 @@ function Get-GuardFindings([string]$Log, [string]$Dir, [string[]]$Files) {
 ```
 All other `warning`/`error` lines in the log are "not blocking". Also check the log for a crash or tool failure (Python traceback, `ModuleNotFoundError`, build error without a file). A failed tool is never a pass.
 
-Reading results: `dox` prints its progress through stderr, so PowerShell shows `NativeCommandError` lines. These are not warnings. `lint` is clean for the changelist when no `Warning`, `Error` or `Info` line with a number refers to a changelist file. For clang-tidy, also note the check name in brackets, for example `[modernize-use-nodiscard]`. IWYU prints `<path> - FAILED` for each file with include problems. The lines below it, up to the next `- FAILED` line or `Done`, are the fix: `- #include ...` means remove, `#include ...` means add. Read that block in the log.
+Reading results: `lint` is clean for the changelist when no `Warning`, `Error` or `Info` line with a number refers to a changelist file. For clang-tidy, also note the check name in brackets, for example `[modernize-use-nodiscard]`. IWYU prints `<path> - FAILED` for each file with include problems. The lines below it, up to the next `- FAILED` line or `Done`, are the fix: `- #include ...` means remove, `#include ...` means add. Read that block in the log.
 
 ## Procedure
 1. Check `p4 login -s`. Run `$all = Get-ChangelistPackages <cl>` and show the user the files grouped by package and the skipped files. If no file has a package, report "nothing to check" and stop.
 2. Note the files in the changelist that are opened but unchanged (`p4 diff -sr` on the changelist files). Report them, but do not revert them.
 3. For each package `$dir` (with `$files = ($all | ? Package -eq $dir).Path`), run the steps in this order: `clang`, `iwyu`, `checkstd`, `dox`, `lint`:
    1. Run the step with `Invoke-GuardStep <step> $dir <cl>`. Poll until it finishes. Then run `Get-GuardFindings $log $dir $files`.
-   2. **No findings in changelist files:** the step passes. Go to the next step.
+   2. **No findings in changelist files and the tool succeeded:** the step passes. Go to the next step.
    3. **Findings in changelist files:**
       - In **check** mode: record them as blocking and go to the next step.
       - In **fix** mode: fix the source code at the root cause. Do not silence it with `NOLINT` or by changing settings unless a real fix is impossible. If it is impossible, explain why. Follow the existing code style. C++20. Change only files in the changelist. If a fix needs a file outside the changelist (for example a shared header), ask the user first; if approved, open it with `p4 edit -c <cl> <file>` so it is part of the changelist. Then run the **same step again** and repeat until it passes.
@@ -132,11 +132,5 @@ Reading results: `dox` prints its progress through stderr, so PowerShell shows `
 ## Notes
 - `-onlyWritable` processes a `.cpp` file if the file or its header is writable. Files opened in other changelists are writable too, so the log can contain findings for them. `Get-GuardFindings` ignores them.
 - A header in the changelist without a writable `.cpp` file next to it is not processed by clang-tidy or IWYU. Name such headers in the report.
-- IWYU fixes are add/remove `#include` changes. Rebuild (`bm . -c VC143LintRelease` or a normal build) to confirm nothing breaks.
-- Doxygen warnings usually mean missing or incorrect `@param`, `@return` or `@brief` comments.
+- IWYU fixes are add/remove `#include` changes.
 - If the changelist is shelved, the local files are what is checked. Remind the user to re-shelve after fixes.
-
-## Learnings
-- Preserve justified existing analyzer suppressions and the code they protect; do not remove them or change an API solely to appease another analyzer. For example, retain a reference-returning thread-local generator and its `//lint !e1929` annotation rather than returning a pointer, and keep a macro's `//lint !e750` annotation when it is used by third-party headers.
-- Preserve explicit lambda captures when they are intentional; replacing `[this, &event, count]` with `[&]` can introduce lint findings. Keep established `CHKSTD_OK` test-header comments unchanged unless a finding actually requires changing them.
-- When changelist tests belong to a separate test package, run lint in that package independently using `Invoke-GuardStep`; parent-package lint may not include test sources. Filter findings to changelist files, but report a failed tool or build as a blocker even if the failure originates elsewhere.

@@ -5,6 +5,8 @@ description: Run the `nightly` code-quality pipeline (clang-tidy, IWYU, checkSta
 
 # Nightly Fix Skill
 
+Before proceeding, read and follow `COMMON.md` in this skill's directory. When using the repository source directly, read `..\nightly-common\COMMON.md` instead. If the file is missing, stop and report the installation problem.
+
 ## Input
 A package path relative to `C:\perforce\AnmaTest`, e.g. `BOLDMRIMapping/logic`
 → working folder `C:\perforce\AnmaTest\BOLDMRIMapping\logic`.
@@ -28,7 +30,6 @@ nightly [-startStep N]
 ## Requirements
 - Every nightly command runs in a **new Developer PowerShell window** (see "Running a step" below). Do not run long steps in the agent terminal, because it times out ("A task was canceled").
 - The new window loads the user profile, so `nightly`, `clang`, `iwyu`, `checkstd`, `dox`, `lint`, `format`, `checkout`, `revert`, `Py`, `Say` and `$CLIENT_ROOT` are defined.
-- `p4` must be logged in (`p4 login -s`).
 
 ## Running a step (new Developer PowerShell window)
 Define this helper once in the agent terminal. It opens a new Developer PowerShell window for one step, writes all output to a log file, and writes a `.done` marker file at the end:
@@ -52,7 +53,7 @@ Usage:
 
 Python per step: `clang` fails with `ModuleNotFoundError: No module named 'utils'` under the Cygwin Python set by the profile, because Cygwin treats `C:/...` paths as relative. For `clang`, add `` `$global:PythonExe='C:\Program Files\Python313\python.exe'; `` after `. `$PROFILE;` in `$cmd`. `iwyu` needs the default Cygwin Python, so leave the variable unchanged for it.
 
-Reading results: `dox` prints its progress through stderr, so PowerShell shows `NativeCommandError` lines. These are not warnings. `lint` is clean when it ends with `OK` and shows no `Warning`, `Error` or `Info` lines with a number.
+Reading results: `lint` is clean when it ends with `OK` and shows no `Warning`, `Error` or `Info` lines with a number.
 
 The window closes automatically when the step finishes; its log and `.done` marker remain available.
 
@@ -88,11 +89,5 @@ The interactive prompt cannot be answered reliably from the agent terminal. Run 
 
 ## Notes
 - Keep fixes minimal and only inside the package folder. Shared headers from other packages may be affected. Ask before changing them.
-- IWYU fixes are add/remove `#include` changes. Rebuild with `bm . -c VC143LintRelease` or a normal build to confirm nothing breaks.
-- Doxygen warnings usually mean missing or incorrect `@param`, `@return` or `@brief` comments.
+- IWYU fixes are add/remove `#include` changes.
 - `checkstd` runs `removeBak` first. Never commit `.bak` files.
-
-## Learnings
-- Preserve justified existing analyzer suppressions and the code they protect; do not remove them or change an API solely to appease another analyzer. For example, retain a reference-returning thread-local generator and its `//lint !e1929` annotation rather than returning a pointer, and keep a macro's `//lint !e750` annotation when it is used by third-party headers.
-- Preserve explicit lambda captures when they are intentional; replacing `[this, &event, count]` with `[&]` can introduce lint findings. Keep established `CHKSTD_OK` test-header comments unchanged unless a finding actually requires changing them.
-- If modified tests belong to a separate test package, run its lint independently in a new Developer PowerShell window; linting the parent package may not include test sources. Review numbered findings and exit status, and report any remaining blockers rather than claiming the test package is clean.

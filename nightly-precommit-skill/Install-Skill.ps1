@@ -2,9 +2,9 @@
 .SYNOPSIS
     Installs the nightly-precommit Copilot agent skill for Visual Studio and VS Code.
 .DESCRIPTION
-    Copies SKILL.md to the personal skill folder (~\.copilot\skills\nightly-precommit), which both
-    Visual Studio 2026 (18.5+) and VS Code read. Optionally also copies it into the
-    .github\skills folder of one or more workspaces.
+    Copies SKILL.md and the shared COMMON.md to the personal skill folder
+    (~\.copilot\skills\nightly-precommit), which both Visual Studio 2026 (18.5+) and VS Code
+    read. Optionally also copies them into one or more workspaces.
 .EXAMPLE
     .\Install-Skill.ps1
 .EXAMPLE
@@ -17,7 +17,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $name = 'nightly-precommit'
 $source = Join-Path $PSScriptRoot 'SKILL.md'
+$common = Join-Path (Split-Path $PSScriptRoot) 'nightly-common\COMMON.md'
 if (-not (Test-Path $source)) { throw "SKILL.md not found next to this script: $source" }
+if (-not (Test-Path $common)) { throw "Shared guidance not found: $common" }
 
 $targets = @(Join-Path $env:USERPROFILE ".copilot\skills\$name")
 foreach ($ws in $Workspace) {
@@ -26,19 +28,16 @@ foreach ($ws in $Workspace) {
 }
 
 foreach ($dir in $targets) {
+    foreach ($file in @('SKILL.md', 'COMMON.md')) {
+        $dest = Join-Path $dir $file
+        if ((Test-Path $dest) -and (Get-Item $dest).IsReadOnly) {
+            throw "Read-only (Perforce?), run 'p4 edit $dest' first: $dest"
+        }
+    }
     New-Item -ItemType Directory -Force $dir | Out-Null
-    $dest = Join-Path $dir 'SKILL.md'
-    if ((Test-Path $dest) -and -not (Get-Item $dest).IsReadOnly) {
-        Copy-Item $source $dest -Force
-    }
-    elseif (Test-Path $dest) {
-        Write-Warning "Read-only (Perforce?), run 'p4 edit $dest' first: $dest"
-        continue
-    }
-    else {
-        Copy-Item $source $dest
-    }
-    Write-Host "Installed: $dest"
+    Copy-Item $source (Join-Path $dir 'SKILL.md') -Force
+    Copy-Item $common (Join-Path $dir 'COMMON.md') -Force
+    Write-Host "Installed: $dir"
 }
 
 # Checks
