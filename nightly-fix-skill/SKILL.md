@@ -91,3 +91,8 @@ The interactive prompt cannot be answered reliably from the agent terminal. Run 
 - IWYU fixes are add/remove `#include` changes. Rebuild with `bm . -c VC143LintRelease` or a normal build to confirm nothing breaks.
 - Doxygen warnings usually mean missing or incorrect `@param`, `@return` or `@brief` comments.
 - `checkstd` runs `removeBak` first. Never commit `.bak` files.
+
+## Learnings
+- Preserve justified existing analyzer suppressions and the code they protect; do not remove them or change an API solely to appease another analyzer. For example, retain a reference-returning thread-local generator and its `//lint !e1929` annotation rather than returning a pointer, and keep a macro's `//lint !e750` annotation when it is used by third-party headers.
+- Preserve explicit lambda captures when they are intentional; replacing `[this, &event, count]` with `[&]` can introduce lint findings. Keep established `CHKSTD_OK` test-header comments unchanged unless a finding actually requires changing them.
+- If modified tests belong to a separate test package, run its lint independently in a new Developer PowerShell window; linting the parent package may not include test sources. Review numbered findings and exit status, and report any remaining blockers rather than claiming the test package is clean.

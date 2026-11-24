@@ -135,3 +135,8 @@ Reading results: `dox` prints its progress through stderr, so PowerShell shows `
 - IWYU fixes are add/remove `#include` changes. Rebuild (`bm . -c VC143LintRelease` or a normal build) to confirm nothing breaks.
 - Doxygen warnings usually mean missing or incorrect `@param`, `@return` or `@brief` comments.
 - If the changelist is shelved, the local files are what is checked. Remind the user to re-shelve after fixes.
+
+## Learnings
+- Preserve justified existing analyzer suppressions and the code they protect; do not remove them or change an API solely to appease another analyzer. For example, retain a reference-returning thread-local generator and its `//lint !e1929` annotation rather than returning a pointer, and keep a macro's `//lint !e750` annotation when it is used by third-party headers.
+- Preserve explicit lambda captures when they are intentional; replacing `[this, &event, count]` with `[&]` can introduce lint findings. Keep established `CHKSTD_OK` test-header comments unchanged unless a finding actually requires changing them.
+- When changelist tests belong to a separate test package, run lint in that package independently using `Invoke-GuardStep`; parent-package lint may not include test sources. Filter findings to changelist files, but report a failed tool or build as a blocker even if the failure originates elsewhere.
