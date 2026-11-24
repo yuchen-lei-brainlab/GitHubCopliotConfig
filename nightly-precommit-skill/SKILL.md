@@ -70,7 +70,7 @@ function Invoke-GuardStep([string]$Step, [string]$Dir, [int]$Cl) {
     }
     $cmd = "& '$vs\Common7\Tools\Launch-VsDevShell.ps1' -Arch amd64 -SkipAutomaticLocation | Out-Null; " +
            ". `$PROFILE; Set-Location '$Dir'; & { $run } *>&1 | Tee-Object -FilePath '$log'; " +
-           "Set-Content '$done' `$LASTEXITCODE"
+           "Set-Content '$done' `$LASTEXITCODE; exit"
     Start-Process powershell.exe -ArgumentList '-ExecutionPolicy', 'Bypass', '-Command', $cmd
     return $log
 }
